@@ -19,6 +19,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.alperyuceer.kotlinartbook.databinding.ActivityArtBinding
 import com.google.android.material.snackbar.Snackbar
+import java.io.ByteArrayOutputStream
 
 class ArtActivity : AppCompatActivity() {
     private lateinit var binding: ActivityArtBinding
@@ -38,7 +39,61 @@ class ArtActivity : AppCompatActivity() {
 
 
     fun saveClicked(view: View){
+        val artName = binding.artNameText.text.toString()
+        val artistName = binding.artistNameText.text.toString()
+        var year = binding.yearText.text.toString()
+        if (selectedBitmap!=null){
+            val smallBitmap = makeSmallerBitmap(selectedBitmap!!,300)
+            val outputStream =  ByteArrayOutputStream()
+            smallBitmap.compress(Bitmap.CompressFormat.PNG,50,outputStream)
+            val byteArray = outputStream.toByteArray()
+            try {
+                val database = this.openOrCreateDatabase("Arts", MODE_PRIVATE,null)
+                database.execSQL("CREATE TABLE IF NOT EXISTS arts (id INTEGER PRIMARY KEY,artname VARCHAR, artistname VARCHAR, year VARCHAR, image BLOB)")
 
+                val sqlString = "INSERT INTO arts (artname, artistname, year, image) VALUES (?, ?, ?, ?)"
+                val statement = database.compileStatement(sqlString)
+                statement.bindString(1,artName)
+                statement.bindString(2,artistName)
+                statement.bindString(3,year)
+                statement.bindBlob(4,byteArray)
+                statement.execute()
+
+
+
+            }catch (e:Exception){
+                e.printStackTrace()
+            }
+
+            val intent = Intent(this@ArtActivity,MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            startActivity(intent)
+        }
+
+
+    }
+    private fun makeSmallerBitmap(image: Bitmap,maximumSize: Int):Bitmap{
+        //sqlite'a resim kaydederken 1mb'ı geçmemesi gerekiyor. Bu sebepten dolayı boyutunu küçültmemiz gerek.
+        var width = image.width
+        var height = image.height
+
+        var bitmapRatio:Double =  width.toDouble()/height.toDouble()
+
+        if (bitmapRatio>1){
+            //landscape(yatay)
+            width = maximumSize
+            val scaledHeight = width/bitmapRatio
+            height = scaledHeight.toInt()
+
+        }else{
+            //portrait(dikey)
+            height = maximumSize
+            val scaledWidth = height*bitmapRatio
+            width = scaledWidth.toInt()
+
+        }
+
+        return Bitmap.createScaledBitmap(image,width,height,true)
     }
 
     fun selectImage(view: View){
@@ -59,7 +114,8 @@ class ArtActivity : AppCompatActivity() {
 
             } else {
                 //izin verildi
-                val intentToGallery= Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                val intentToGallery =
+                    Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
                 activityResultLauncher.launch(intentToGallery)
 
             }
@@ -97,7 +153,7 @@ class ArtActivity : AppCompatActivity() {
 
     private fun registerLauncher(){
 
-        activityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()){result ->
+         activityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()){result ->
             if(result.resultCode== RESULT_OK){
                 val intentFromResult = result.data
                 if(intentFromResult != null){
